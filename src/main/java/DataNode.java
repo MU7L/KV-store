@@ -15,65 +15,82 @@ import java.util.Map;
 */
 
 public class DataNode {
-    int port;
+    // 数据表
     Map<String, String> data;
+    Socket clientSocket;
+    BufferedReader in;
+    PrintWriter out;
 
     DataNode(int port) throws IOException {
-        this.port = port;
         this.data = new HashMap<>();
 
         // 创建监听对象
         ServerSocket listenSocket = new ServerSocket(port);
         System.out.println("DataNode @" + port);
         // 从连接队列中取出一个记录并创建新的通信socket
-        Socket clientSocket = listenSocket.accept();
+        clientSocket = listenSocket.accept();
         System.out.println("连接到 Client");
 
         InputStream inputStream = clientSocket.getInputStream();
         OutputStream outputStream = clientSocket.getOutputStream();
-        BufferedReader in = new BufferedReader(new InputStreamReader(inputStream));
-        PrintWriter out = new PrintWriter(outputStream);
+        in = new BufferedReader(new InputStreamReader(inputStream));
+        out = new PrintWriter(outputStream);
 
-        String line;
-        while ((line = in.readLine()) != null) {
-            System.out.println(line);
-            String[] args = line.split(" ");
-            if(args.length >= 3 && args[0].equals("put")) {
-                data.put(args[1], args[2]);
-                line = "ok";
-            } else if (args.length >= 2 && args[0].equals("get")) {
-                line = data.get(args[1]);
-            } else if (args[0].equals("quit")) break;
-            System.out.println(line);
-            out.println(line);
-            out.flush();
-        }
-
-        clientSocket.close();
         listenSocket.close();
     }
 
-    void run() {
-
+    /*
+     * 命令
+     * put key value 返回 ok
+     * get key 返回 value
+     * add <port>
+     * remove <port>
+     * quit
+     */
+    void run() throws IOException {
+        String line;
+        REPL:
+        while ((line = in.readLine()) != null) {
+            System.out.println(line);
+            String[] args = line.split(" ");
+            switch (args[0]) {
+                case "put":
+                    data.put(args[1], args[2]);
+                    break;
+                case "get":
+                    line = data.get(args[1]);
+                    System.out.println(line);
+                    out.println(line);
+                    out.flush();
+                    break;
+                case "quit":
+                    break REPL;
+                default:
+                    System.out.println('?');
+                    break;
+            }
+        }
     }
 
-    void close() {
-
+    void close() throws IOException {
+        in.close();
+        out.close();
+        clientSocket.close();
     }
 
-    public static void main(String[] args) {
-        if (args.length <= 1) {
+    /*
+     * 命令
+     * DataNode 10
+     */
+    public static void main(String[] args) throws NumberFormatException, IOException {
+        if (args.length == 0) {
             System.out.println("用法：DataNode <端口号>");
             return;
         }
-        int port;
-        try{
-            port = Integer.parseInt(args[0]);
-            DataNode dn = new DataNode(port);
-        } catch (NumberFormatException e) {
-            System.out.println("非法输入");
-        } catch (IOException e) {
-            System.out.println("IOException");
-        }
+        int port = Integer.parseInt(args[0]);
+        DataNode dataNode = new DataNode(port);
+        dataNode.run();
+        dataNode.close();
+        System.out.println("close");
     }
 }

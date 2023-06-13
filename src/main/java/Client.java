@@ -1,11 +1,13 @@
 import java.io.*;
 import java.net.Socket;
 import java.util.Map;
+import java.util.Scanner;
 import java.util.TreeMap;
 
 public class Client {
 
-    class NodeProxy {
+    // 数据节点代理类
+    static class NodeProxy {
         Socket socket;
         BufferedReader in;
         PrintWriter out;
@@ -17,14 +19,36 @@ public class Client {
             this.in = new BufferedReader(new InputStreamReader(inputStream));
             this.out = new PrintWriter(outputStream);
         }
+
+        void put(String key, String value) throws IOException {
+            out.println(String.format("put %s %s", key, value));
+            out.flush();
+        }
+
+        String get(String key) throws IOException {
+            return in.readLine();
+        }
+
+        // 取出节点全部键值对 用于移除节点操作
+        Map<String, String> getAll() {
+            return null;
+        }
+
+        void close() throws IOException {
+            in.close();
+            out.close();
+            socket.close();
+        }
     }
 
+    // 节点表
     Map<Integer, NodeProxy> nodes;
 
     Client() {
         nodes = new TreeMap<>();
     }
 
+    // 增加节点 TODO: 数据迁移
     void addNode(int port) throws IOException {
         NodeProxy node = new NodeProxy(port);
         String _port = String.valueOf(port);
@@ -32,58 +56,108 @@ public class Client {
         System.out.println("connected to DataNode@" + port);
     }
 
+    // TODO: 移除节点
     void removeNode(int port) {
-
     }
 
-    String put(String key, String value) throws IOException {
-        if (nodes.size() == 0) return "没有 DataNode";
+    // 根据键值寻找所在节点
+    NodeProxy locateNode(String key) {
+        if (nodes.size() == 0) {
+            System.out.println("没有 DataNode");
+            return null;
+        }
         int hashKey = MyHash.hash(key);
         int i = hashKey;
-        boolean found = false;
         while (i < MyHash.MAX_HASH) {
             if (nodes.containsKey(i)) {
-                found = true;
                 break;
             }
             i++;
-            if (i == MyHash.MAX_HASH){
+            if (i == MyHash.MAX_HASH) {
                 i = 0;
-            } else if (i == hashKey){
+            } else if (i == hashKey) {
                 break;
             }
         }
-        if (found) {
-            // 找到存储节点
-            NodeProxy node = nodes.get(i);
-            node.out.println(String.format("put %s %s", key, value));
-            node.out.flush();
-            return node.in.readLine();
-        } else {
-            return "找不到 DataNode";
+        return nodes.get(i);
+    }
+
+    void put(String key, String value) throws IOException {
+        NodeProxy node = locateNode(key);
+        node.put(key, value);
+    }
+
+    String get(String key) throws IOException {
+        NodeProxy node = locateNode(key);
+        return node.get(key);
+    }
+
+    /*
+     * 命令
+     * put key value
+     * get key 返回 value
+     * add <port>
+     * remove <port>
+     * quit
+     */
+    void repl() throws NumberFormatException, IOException {
+        Scanner sc = new Scanner(System.in);
+        String line;
+        REPL:
+        while (true) {
+            line = sc.nextLine();
+            String[] args = line.split(" ");
+            if (line.equals("quit")) break;
+            switch (args[0]) {
+                case "quit":
+                    break REPL;
+                case "put":
+                    put(args[1], args[2]);
+                    break;
+                case "get":
+                    line = get(args[1]);
+                    System.out.println(line);
+                    break;
+                case "add": {
+                    int _port = Integer.parseInt(args[1]);
+                    addNode(_port);
+                    break;
+                }
+                case "remove": {
+                    int _port = Integer.parseInt(args[1]);
+                    removeNode(_port);
+                    break;
+                }
+                default:
+                    System.out.println("无效命令");
+                    break;
+            }
         }
-    }
-
-    String get(String key) {
-
-    }
-
-    Map<String, String> getAll() {
-
     }
 
     void close() throws IOException {
-        for(NodeProxy node: nodes.values()) {
-            node.socket.close();
+        for (NodeProxy node : nodes.values()) {
+            node.close();
         }
+        nodes.clear();
     }
 
-    // store 1 2 3
-    public static void main(String[] args) {
-        if (args.length <= 2) {
+    /*
+     * 命令
+     * Client 10 11 12
+     */
+    public static void main(String[] args) throws NumberFormatException, IOException {
+        if (args.length == 0) {
             System.out.println("用法：Client <DataNode端口号> ...");
             return;
         }
-        Client client = new Client(); // TODO:
+        Client client = new Client();
+        for (String port : args) {
+            int _port = Integer.parseInt(port);
+            client.addNode(_port);
+        }
+        client.repl();
+        client.close();
+        System.out.println("close");
     }
 }
