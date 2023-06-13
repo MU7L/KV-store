@@ -1,5 +1,6 @@
 import java.io.*;
 import java.net.Socket;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.TreeMap;
@@ -20,18 +21,28 @@ public class Client {
             this.out = new PrintWriter(outputStream);
         }
 
-        void put(String key, String value) throws IOException {
+        void put(String key, String value) {
             out.println(String.format("put %s %s", key, value));
             out.flush();
         }
 
         String get(String key) throws IOException {
+            out.println(String.format("get %s", key));
+            out.flush();
             return in.readLine();
         }
 
         // 取出节点全部键值对 用于移除节点操作
-        Map<String, String> getAll() {
-            return null;
+        Map<String, String> getAll() throws IOException {
+            Map<String, String> data = new HashMap<>();
+            out.println("get all");
+            out.flush();
+            String line;
+            while ((line = in.readLine()) != null) {
+                String[] args = line.split(" ");
+                data.put(args[0], args[1]);
+            }
+            return data;
         }
 
         void close() throws IOException {
@@ -82,7 +93,7 @@ public class Client {
         return nodes.get(i);
     }
 
-    void put(String key, String value) throws IOException {
+    void put(String key, String value) {
         NodeProxy node = locateNode(key);
         node.put(key, value);
     }
@@ -144,7 +155,7 @@ public class Client {
 
     /*
      * 命令
-     * Client 10 11 12
+     * Client 8000
      */
     public static void main(String[] args) throws NumberFormatException, IOException {
         if (args.length == 0) {

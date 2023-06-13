@@ -4,16 +4,6 @@ import java.net.Socket;
 import java.util.HashMap;
 import java.util.Map;
 
-/*
-* 接收消息
-* put key value
-* get key
-* quit
-* 返回消息
-* ok
-* value
-*/
-
 public class DataNode {
     // 数据表
     Map<String, String> data;
@@ -58,7 +48,16 @@ public class DataNode {
                     data.put(args[1], args[2]);
                     break;
                 case "get":
-                    line = data.get(args[1]);
+                    if (args[1].equals("all")) {
+                        StringBuilder sb = new StringBuilder();
+                        for (Map.Entry<String, String> entry : data.entrySet()) {
+                            sb.append(String.format("%s %s", entry.getKey(), entry.getValue())).append('\n');
+                        }
+                        sb.deleteCharAt(sb.length() - 1);
+                        line = sb.toString();
+                    } else {
+                        line = data.get(args[1]);
+                    }
                     System.out.println(line);
                     out.println(line);
                     out.flush();
@@ -80,7 +79,7 @@ public class DataNode {
 
     /*
      * 命令
-     * DataNode 10
+     * DataNode 8000
      */
     public static void main(String[] args) throws NumberFormatException, IOException {
         if (args.length == 0) {
