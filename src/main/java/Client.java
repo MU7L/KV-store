@@ -1,9 +1,6 @@
 import java.io.*;
 import java.net.Socket;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Scanner;
-import java.util.TreeMap;
+import java.util.*;
 
 public class Client {
 
@@ -59,16 +56,87 @@ public class Client {
         nodes = new TreeMap<>();
     }
 
+//    // 将节点按照哈希值排序
+//    void sortMap(){
+//        List<Map.Entry< Integer,NodeProxy>> entries = new ArrayList<>(nodes.entrySet());
+//
+//        Collections.sort(entries, new Comparator<Map.Entry<Integer,NodeProxy>>() {
+//            @Override
+//            public int compare(Map.Entry<Integer,NodeProxy> entry1, Map.Entry<Integer,NodeProxy> entry2) {
+//                return entry1.getKey().compareTo(entry2.getKey());
+//            }
+//        });
+//    }
+
+
     // 增加节点 TODO: 数据迁移
     void addNode(int port) throws IOException {
         NodeProxy node = new NodeProxy(port);
         String _port = String.valueOf(port);
         nodes.put(MyHash.hash(_port), node);
         System.out.println("connected to DataNode@" + port);
+
+        // 找出源数据所在节点
+        Integer nowHash= MyHash.hash(_port);
+        Integer oldHash=MyHash.MAX_HASH;
+        NodeProxy oldNode = null;
+
+        for (Map.Entry<Integer,NodeProxy> entry : nodes.entrySet()) {
+            Integer key = entry.getKey();
+            if (key > nowHash){
+                if (key < oldHash){
+                    oldNode = entry.getValue();
+                    oldHash=key;
+                }
+            }
+        }
+
+        Map<String,String> data=oldNode.getAll();
+        for (Map.Entry<String, String> entry : data.entrySet()) {
+            String key = entry.getKey();
+            String value = entry.getValue();
+//            System.out.println(key + ": " + value);
+            Integer keyHash=MyHash.hash(key);
+
+            if (keyHash > nowHash) oldNode.put(key,value);
+            else node.put(key,value);
+        }
     }
 
     // TODO: 移除节点
     void removeNode(int port) {
+
+        String _port=String.valueOf(port);
+        NodeProxy oldNode = nodes.get(MyHash.hash(_port));
+        Integer oldHash= MyHash.hash(_port);
+
+        //找出新节点
+        Integer   newHash=MyHash.MAX_HASH;
+        NodeProxy newNode = null;
+        for (Map.Entry<Integer,NodeProxy> entry : nodes.entrySet()) {
+            Integer key = entry.getKey();
+            if (key > oldHash){
+                if (key < newHash){
+                    newNode = entry.getValue();
+                    newHash=key;
+                }
+            }
+        }
+
+        Map<String,String> data;
+        try {
+            data = oldNode.getAll();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        for (Map.Entry<String, String> entry : data.entrySet()) {
+            String key = entry.getKey();
+            String value = entry.getValue();
+//            System.out.println(key + ": " + value);
+
+            newNode.put(key,value);
+        }
+
     }
 
     // 根据键值寻找所在节点
