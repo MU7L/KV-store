@@ -1,6 +1,9 @@
 import java.io.*;
 import java.net.Socket;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Scanner;
+import java.util.TreeMap;
 
 public class Client {
 
@@ -35,7 +38,8 @@ public class Client {
             out.println("get all");
             out.flush();
             String line;
-            while ((line = in.readLine()) != null) {
+            while ((line = in.readLine()) != null) { // TODO: 循环无法退出？
+                System.out.println(line);
                 String[] args = line.split(" ");
                 data.put(args[0], args[1]);
             }
@@ -50,93 +54,10 @@ public class Client {
     }
 
     // 节点表
-    Map<Integer, NodeProxy> nodes;
+    TreeMap<Integer, NodeProxy> nodes;
 
     Client() {
         nodes = new TreeMap<>();
-    }
-
-//    // 将节点按照哈希值排序
-//    void sortMap(){
-//        List<Map.Entry< Integer,NodeProxy>> entries = new ArrayList<>(nodes.entrySet());
-//
-//        Collections.sort(entries, new Comparator<Map.Entry<Integer,NodeProxy>>() {
-//            @Override
-//            public int compare(Map.Entry<Integer,NodeProxy> entry1, Map.Entry<Integer,NodeProxy> entry2) {
-//                return entry1.getKey().compareTo(entry2.getKey());
-//            }
-//        });
-//    }
-
-
-    // 增加节点 TODO: 数据迁移
-    void addNode(int port) throws IOException {
-        NodeProxy node = new NodeProxy(port);
-        String _port = String.valueOf(port);
-        nodes.put(MyHash.hash(_port), node);
-        System.out.println("connected to DataNode@" + port);
-
-        // 找出源数据所在节点
-        Integer nowHash= MyHash.hash(_port);
-        Integer oldHash=MyHash.MAX_HASH;
-        NodeProxy oldNode = null;
-
-        for (Map.Entry<Integer,NodeProxy> entry : nodes.entrySet()) {
-            Integer key = entry.getKey();
-            if (key > nowHash){
-                if (key < oldHash){
-                    oldNode = entry.getValue();
-                    oldHash=key;
-                }
-            }
-        }
-
-        Map<String,String> data=oldNode.getAll();
-        for (Map.Entry<String, String> entry : data.entrySet()) {
-            String key = entry.getKey();
-            String value = entry.getValue();
-//            System.out.println(key + ": " + value);
-            Integer keyHash=MyHash.hash(key);
-
-            if (keyHash > nowHash) oldNode.put(key,value);
-            else node.put(key,value);
-        }
-    }
-
-    // TODO: 移除节点
-    void removeNode(int port) {
-
-        String _port=String.valueOf(port);
-        NodeProxy oldNode = nodes.get(MyHash.hash(_port));
-        Integer oldHash= MyHash.hash(_port);
-
-        //找出新节点
-        Integer   newHash=MyHash.MAX_HASH;
-        NodeProxy newNode = null;
-        for (Map.Entry<Integer,NodeProxy> entry : nodes.entrySet()) {
-            Integer key = entry.getKey();
-            if (key > oldHash){
-                if (key < newHash){
-                    newNode = entry.getValue();
-                    newHash=key;
-                }
-            }
-        }
-
-        Map<String,String> data;
-        try {
-            data = oldNode.getAll();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        for (Map.Entry<String, String> entry : data.entrySet()) {
-            String key = entry.getKey();
-            String value = entry.getValue();
-//            System.out.println(key + ": " + value);
-
-            newNode.put(key,value);
-        }
-
     }
 
     // 根据键值寻找所在节点
@@ -146,27 +67,72 @@ public class Client {
             return null;
         }
         int hashKey = MyHash.hash(key);
-        int i = hashKey;
-        while (i < MyHash.MAX_HASH) {
-            if (nodes.containsKey(i)) {
-                break;
-            }
-            i++;
-            if (i == MyHash.MAX_HASH) {
-                i = 0;
-            } else if (i == hashKey) {
-                break;
+        Integer nodeHash = nodes.ceilingKey(hashKey);
+        if (nodeHash == null) {
+            return nodes.firstEntry().getValue();
+        } else return nodes.get(nodeHash);
+    }
+
+    // 增加节点
+    void addNode(int port, boolean init) throws IOException {
+        String _port = String.valueOf(port);
+        int portHash = MyHash.hash(_port);
+        System.out.println(String.format("[hash:%d]", portHash));
+        if (nodes.containsKey(portHash)) {
+            System.out.println("该 DataNode 已存在");
+        }
+        NodeProxy node = new NodeProxy(port);
+
+        // 数据迁移
+        if (!init) {
+            NodeProxy sourceNode = locateNode(_port);
+            Map<String, String> data = sourceNode.getAll();
+            for (Map.Entry<String, String> entry : data.entrySet()) {
+                String key = entry.getKey();
+                String value = entry.getValue();
+                int keyHash = MyHash.hash(key);
+                // 需要迁移
+                if (keyHash < portHash) node.put(key, value);
+                    // 不需要迁移
+                else sourceNode.put(key, value);
             }
         }
-        return nodes.get(i);
+
+        nodes.put(portHash, node);
+        System.out.println("connected to DataNode@" + port);
+    }
+
+    // 移除节点
+    void removeNode(int port) throws IOException {
+        if (nodes.size() == 1) {
+            System.out.println("不能删除最后一个 DataNode");
+            return;
+        }
+        String _port = String.valueOf(port);
+        int portHash = MyHash.hash(_port);
+        System.out.println(String.format("[hash:%d]", portHash));
+        NodeProxy node = nodes.get(portHash);
+        if (node == null) {
+            System.out.println("不存在该 DataNode");
+            return;
+        }
+        NodeProxy dest = locateNode(_port);
+        Map<String, String> data = node.getAll();
+        for (Map.Entry<String, String> entry : data.entrySet()) {
+            String key = entry.getKey();
+            String value = entry.getValue();
+            dest.put(key, value);
+        }
     }
 
     void put(String key, String value) {
+        System.out.println(String.format("[hash:%d]", MyHash.hash(key)));
         NodeProxy node = locateNode(key);
         node.put(key, value);
     }
 
     String get(String key) throws IOException {
+        System.out.println(String.format("[hash:%d]", MyHash.hash(key)));
         NodeProxy node = locateNode(key);
         return node.get(key);
     }
@@ -180,10 +146,17 @@ public class Client {
      * quit
      */
     void repl() throws NumberFormatException, IOException {
+        System.out.println("命令：\n" +
+                "put <key：7位字符> <value>\n" +
+                "get <key：7位字符>\n" +
+                "add <port>\n" +
+                "remove <port>\n" +
+                "quit");
         Scanner sc = new Scanner(System.in);
         String line;
         REPL:
         while (true) {
+            System.out.print("> ");
             line = sc.nextLine();
             String[] args = line.split(" ");
             if (line.equals("quit")) break;
@@ -191,15 +164,23 @@ public class Client {
                 case "quit":
                     break REPL;
                 case "put":
-                    put(args[1], args[2]);
+                    if (args[1].length() > 7) {
+                        System.out.println("输入无效");
+                    } else {
+                        put(args[1], args[2]);
+                    }
                     break;
                 case "get":
-                    line = get(args[1]);
-                    System.out.println(line);
+                    if (args[1].length() > 7) {
+                        System.out.println("输入无效");
+                    } else {
+                        line = get(args[1]);
+                        System.out.println(line);
+                    }
                     break;
                 case "add": {
                     int _port = Integer.parseInt(args[1]);
-                    addNode(_port);
+                    addNode(_port, false);
                     break;
                 }
                 case "remove": {
@@ -233,7 +214,7 @@ public class Client {
         Client client = new Client();
         for (String port : args) {
             int _port = Integer.parseInt(port);
-            client.addNode(_port);
+            client.addNode(_port, true);
         }
         client.repl();
         client.close();

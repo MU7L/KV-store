@@ -41,7 +41,7 @@ public class DataNode {
         String line;
         REPL:
         while ((line = in.readLine()) != null) {
-            System.out.println(line);
+            System.out.println("[client] " + line);
             String[] args = line.split(" ");
             switch (args[0]) {
                 case "put":
@@ -55,11 +55,13 @@ public class DataNode {
                         }
                         sb.deleteCharAt(sb.length() - 1);
                         line = sb.toString();
+                        data.clear();
                     } else {
                         line = data.get(args[1]);
                     }
                     System.out.println(line);
                     out.println(line);
+                    // out.println((char[]) null);
                     out.flush();
                     break;
                 case "quit":
@@ -68,6 +70,7 @@ public class DataNode {
                     System.out.println('?');
                     break;
             }
+            System.out.println(data.toString());
         }
     }
 

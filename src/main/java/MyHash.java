@@ -8,8 +8,8 @@ public class MyHash {
     public static final int MAX_HASH = 99999;
 
     static int hash(String str) {
-        if (str.length()==4 ) str=str+"000";
-        if (str.length()==3 ) str=str+"0000";
+        if (str.length() == 4) str = str + "000";
+        if (str.length() == 3) str = str + "0000";
 
         return (int) calculateHash(str);
     }
@@ -33,7 +33,11 @@ public class MyHash {
             int hashCode = Integer.hashCode(intValue);
 
             // 截取倒数第1位到第5位的子串
-            String hashSubstring = String.valueOf(hashCode).substring(Math.max(String.valueOf(hashCode).length() - 5, 0));
+            String hashSubstring = String
+                    .valueOf(hashCode)
+                    .substring(
+                            Math.max(String.valueOf(hashCode).length() - 5, 0
+                            ));
 
             // 将子串转换为整数
             return Long.parseLong(hashSubstring);
