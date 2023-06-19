@@ -1,6 +1,7 @@
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -16,10 +17,10 @@ public class DataNode {
 
         // 创建监听对象
         ServerSocket listenSocket = new ServerSocket(port);
-        System.out.println("DataNode @" + port);
+        System.out.println("DataNode@" + port);
         // 从连接队列中取出一个记录并创建新的通信socket
         clientSocket = listenSocket.accept();
-        System.out.println("连接到 Client");
+        System.out.println(new Date() + "\t连接到 Client");
 
         InputStream inputStream = clientSocket.getInputStream();
         OutputStream outputStream = clientSocket.getOutputStream();
@@ -41,7 +42,7 @@ public class DataNode {
         String line;
         REPL:
         while ((line = in.readLine()) != null) {
-            System.out.println("[client] " + line);
+            System.out.println(new Date() + "\t[client] " + line);
             String[] args = line.split(" ");
             switch (args[0]) {
                 case "put":
@@ -51,17 +52,16 @@ public class DataNode {
                     if (args[1].equals("all")) {
                         StringBuilder sb = new StringBuilder();
                         for (Map.Entry<String, String> entry : data.entrySet()) {
-                            sb.append(String.format("%s %s", entry.getKey(), entry.getValue())).append('\n');
+                            sb.append(String.format("%s %s\n", entry.getKey(), entry.getValue()));
                         }
-                        sb.deleteCharAt(sb.length() - 1);
+                        // sb.deleteCharAt(sb.length() - 1);
                         line = sb.toString();
                         data.clear();
                     } else {
                         line = data.get(args[1]);
                     }
-                    System.out.println(line);
+                    System.out.println(new Date() + "\tsend: " + line);
                     out.println(line);
-                    // out.println((char[]) null);
                     out.flush();
                     break;
                 case "quit":
@@ -70,7 +70,7 @@ public class DataNode {
                     System.out.println('?');
                     break;
             }
-            System.out.println(data.toString());
+            System.out.println(new Date() + "\tdatabase: " + data.toString());
         }
     }
 

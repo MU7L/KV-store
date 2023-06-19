@@ -8,10 +8,13 @@ public class MyHash {
     public static final int MAX_HASH = 99999;
 
     static int hash(String str) {
-        if (str.length() == 4) str = str + "000";
-        if (str.length() == 3) str = str + "0000";
-
-        return (int) calculateHash(str);
+        String _str = String.format("%7s", str);
+        _str = _str.replace(" ", "0");
+        // if (str.length() == 4) str = str + "000";
+        // if (str.length() == 3) str = str + "0000";
+        int res = (int) calculateHash(_str);
+        System.out.println(String.format("[hash(%s) = %d]", _str, res));
+        return res;
     }
 
     private static long calculateHash(String input) {

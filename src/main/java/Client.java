@@ -9,11 +9,13 @@ public class Client {
 
     // 数据节点代理类
     static class NodeProxy {
+        int port;
         Socket socket;
         BufferedReader in;
         PrintWriter out;
 
         NodeProxy(int port) throws IOException {
+            this.port = port;
             this.socket = new Socket("localhost", port);
             InputStream inputStream = this.socket.getInputStream();
             OutputStream outputStream = this.socket.getOutputStream();
@@ -39,6 +41,7 @@ public class Client {
             out.flush();
             String line;
             while ((line = in.readLine()) != null) { // TODO: 循环无法退出？
+                if (line.equals("")) break;
                 System.out.println(line);
                 String[] args = line.split(" ");
                 data.put(args[0], args[1]);
@@ -60,7 +63,7 @@ public class Client {
         nodes = new TreeMap<>();
     }
 
-    // 根据键值寻找所在节点
+    // 根据键值寻找所在下一个节点
     NodeProxy locateNode(String key) {
         if (nodes.size() == 0) {
             System.out.println("没有 DataNode");
@@ -77,16 +80,17 @@ public class Client {
     void addNode(int port, boolean init) throws IOException {
         String _port = String.valueOf(port);
         int portHash = MyHash.hash(_port);
-        System.out.println(String.format("[hash:%d]", portHash));
         if (nodes.containsKey(portHash)) {
             System.out.println("该 DataNode 已存在");
         }
         NodeProxy node = new NodeProxy(port);
+        System.out.println("连接到 DataNode@" + port);
 
         // 数据迁移
         if (!init) {
-            NodeProxy sourceNode = locateNode(_port);
-            Map<String, String> data = sourceNode.getAll();
+            NodeProxy source = locateNode(_port);
+            System.out.println(String.format("数据迁移 DataNode@%d -> DataNode@%d", source.port, node.port));
+            Map<String, String> data = source.getAll();
             for (Map.Entry<String, String> entry : data.entrySet()) {
                 String key = entry.getKey();
                 String value = entry.getValue();
@@ -94,12 +98,11 @@ public class Client {
                 // 需要迁移
                 if (keyHash < portHash) node.put(key, value);
                     // 不需要迁移
-                else sourceNode.put(key, value);
+                else source.put(key, value);
             }
         }
 
         nodes.put(portHash, node);
-        System.out.println("connected to DataNode@" + port);
     }
 
     // 移除节点
@@ -110,29 +113,30 @@ public class Client {
         }
         String _port = String.valueOf(port);
         int portHash = MyHash.hash(_port);
-        System.out.println(String.format("[hash:%d]", portHash));
         NodeProxy node = nodes.get(portHash);
         if (node == null) {
             System.out.println("不存在该 DataNode");
             return;
         }
-        NodeProxy dest = locateNode(_port);
+        NodeProxy dest = locateNode(String.valueOf(port + 1));
+        System.out.println(String.format("数据迁移 DataNode@%d -> DataNode@%d", node.port, dest.port));
         Map<String, String> data = node.getAll();
         for (Map.Entry<String, String> entry : data.entrySet()) {
             String key = entry.getKey();
             String value = entry.getValue();
             dest.put(key, value);
         }
+        node.close();
+        nodes.remove(portHash);
+        System.out.println("移除 DataNode@" + port);
     }
 
     void put(String key, String value) {
-        System.out.println(String.format("[hash:%d]", MyHash.hash(key)));
         NodeProxy node = locateNode(key);
         node.put(key, value);
     }
 
     String get(String key) throws IOException {
-        System.out.println(String.format("[hash:%d]", MyHash.hash(key)));
         NodeProxy node = locateNode(key);
         return node.get(key);
     }
